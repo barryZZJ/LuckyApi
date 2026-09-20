@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import TypedDict, Literal
 
 
 class StunRule(TypedDict):
@@ -8,4 +8,13 @@ class StunRule(TypedDict):
     StunType: str
     StunLocalAddr: str
     PublicAddr: str
+    PublicIp: str | None
     PublicPort: int | None
+
+class DDNS(TypedDict):
+    """Normalized enabled DDNS returned by Lucky."""
+
+    TaskName: str
+    Ipv4Addr: str
+    Ipv6Addr: str
+    TaskType: Literal["IPv6", "IPv4"]
