@@ -22,6 +22,7 @@ class _LuckyConfig:
     host_url: str
     username: str
     password: str
+    openToken: str
 
 
 class LuckyClient:
@@ -30,7 +31,6 @@ class LuckyClient:
     def __init__(self, config_path: str | Path, *, timeout: float = 10.0) -> None:
         self._timeout = timeout
         self._config = self._load_config(config_path)
-        self._token: str | None = None
 
     @staticmethod
     def _load_config(config_path: str | Path) -> _LuckyConfig:
@@ -50,7 +50,7 @@ class LuckyClient:
             raise LuckyConfigError("Configuration must be a JSON object")
 
         values: dict[str, str] = {}
-        for key in ("host_url", "username", "password"):
+        for key in ("host_url", "username", "password", "openToken"):
             value = config.get(key)
             if not isinstance(value, str) or not value.strip():
                 raise LuckyConfigError(
@@ -68,67 +68,22 @@ class LuckyClient:
             host_url=values["host_url"].rstrip("/"),
             username=values["username"],
             password=values["password"],
+            openToken=values["openToken"],
         )
 
     @staticmethod
     def _timestamp_ms() -> int:
         return int(time.time() * 1000)
 
-    def _login(self) -> str:
-        try:
-            response = requests.post(
-                f"{self._config.host_url}/api/login",
-                params={"_": self._timestamp_ms()},
-                json={
-                    "Account": self._config.username,
-                    "Password": self._config.password,
-                    "TwoFA": "",
-                },
-                timeout=self._timeout,
-            )
-            response.raise_for_status()
-        except requests.RequestException as exc:
-            raise LuckyAuthenticationError(
-                "Lucky authentication request failed"
-            ) from exc
-
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise LuckyAuthenticationError(
-                "Lucky authentication response was not valid JSON"
-            ) from exc
-
-        if not isinstance(payload, dict):
-            raise LuckyAuthenticationError(
-                "Lucky authentication response must be a JSON object"
-            )
-
-        if payload.get("ret") != 0:
-            message = payload.get("msg")
-            detail = (
-                message if isinstance(message, str) and message else "unknown error"
-            )
-            raise LuckyAuthenticationError(f"Lucky authentication failed: {detail}")
-
-        token = payload.get("token")
-        if not isinstance(token, str) or not token:
-            raise LuckyAuthenticationError(
-                "Lucky authentication response did not contain a valid token"
-            )
-
-        self._token = token
-        return token
-
     def get_stun_rules(self) -> list[StunRule]:
         """Return enabled Lucky STUN rules in dashboard order."""
 
-        token = self._token if self._token is not None else self._login()
+        token = self._config.openToken
         try:
             response = requests.get(
                 f"{self._config.host_url}/api/stunrulelist",
                 params={"_": self._timestamp_ms()},
-                headers={"Lucky-Admin-Token": token},
+                headers={"openToken": token},
                 timeout=self._timeout,
             )
             response.raise_for_status()
